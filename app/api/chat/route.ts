@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
 const MODEL_ENDPOINTS = {
-  deepseek: 'https://api.deepseek.ai/v1/chat/completions',
+  deepseek: 'https://api.deepseek.com/v1/chat/completions',
   'gpt-4': 'https://api.openai.com/v1/chat/completions',
   claude: 'https://api.anthropic.com/v1/messages',
 }
@@ -114,17 +114,34 @@ export async function POST(req: Request) {
 
       return NextResponse.json({ response: responseContent })
     } catch (fetchError: any) {
-      console.error('Fetch error:', fetchError)
+      console.error('Fetch error details:', {
+        name: fetchError.name,
+        message: fetchError.message,
+        stack: fetchError.stack,
+        cause: fetchError.cause,
+      })
       const errorMessage = fetchError.name === 'AbortError' 
         ? 'Request timed out after 30 seconds' 
-        : fetchError.message
+        : `${fetchError.message} (${fetchError.name})`
       return NextResponse.json(
-        { error: `Network error: ${errorMessage}. Please check your network connection and try again.` },
+        { 
+          error: `Network error: ${errorMessage}`,
+          details: {
+            name: fetchError.name,
+            message: fetchError.message,
+            cause: fetchError.cause
+          }
+        },
         { status: 500 }
       )
     }
   } catch (error: any) {
-    console.error('Chat API error:', error)
+    console.error('Chat API error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      cause: error.cause,
+    })
     return NextResponse.json(
       { error: `Server error: ${error.message}` },
       { status: 500 }
