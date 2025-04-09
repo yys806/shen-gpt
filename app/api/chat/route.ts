@@ -133,12 +133,12 @@ export async function POST(req: Request) {
       console.log('Response status:', response.status)
       console.log('Response headers:', Object.fromEntries(response.headers.entries()))
 
-      // 检查响应是否为HTML
-      if (responseText.trim().startsWith('<!DOCTYPE html>') || responseText.trim().startsWith('<html>')) {
-        console.error('Received HTML response instead of JSON:', responseText)
+      // 检查响应是否为HTML或错误页面
+      if (responseText.includes('<!DOCTYPE html>') || responseText.includes('<html>') || responseText.includes('An error occurred')) {
+        console.error('Received invalid response:', responseText)
         return NextResponse.json(
           { 
-            error: 'Received HTML response instead of JSON. API endpoint might be incorrect or experiencing issues.',
+            error: 'API服务器返回了无效的响应，请稍后重试',
             details: {
               status: response.status,
               headers: Object.fromEntries(response.headers.entries()),
@@ -152,7 +152,7 @@ export async function POST(req: Request) {
       // 尝试解析响应
       let data
       try {
-        data = JSON.parse(responseText)
+        data = JSON.parse(responseText.trim())
       } catch (parseError) {
         console.error('JSON Parse error:', {
           error: parseError,
@@ -161,7 +161,7 @@ export async function POST(req: Request) {
         })
         return NextResponse.json(
           { 
-            error: `Invalid API response: ${responseText.substring(0, 200)}...`,
+            error: '服务器返回了无效的数据格式，请稍后重试',
             details: {
               status: response.status,
               headers: Object.fromEntries(response.headers.entries()),
