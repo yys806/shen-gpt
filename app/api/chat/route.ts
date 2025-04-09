@@ -11,29 +11,59 @@ async function fetchWithRetry(url: string, options: RequestInit, retries = 3) {
     try {
       const response = await fetch(url, options)
       const text = await response.text()
+      console.log(`Attempt ${i + 1} response:`, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries()),
+        text: text.substring(0, 1000) // 只记录前1000个字符
+      })
+
+      // 检查响应是否为HTML或错误页面
+      if (text.includes('<!DOCTYPE html>') || text.includes('<html>')) {
+        console.error('Received HTML response:', text.substring(0, 500))
+        throw new Error('API服务器返回了HTML页面，可能是服务器配置问题')
+      }
 
       // 尝试解析为 JSON
       try {
         const data = JSON.parse(text)
         if (!response.ok) {
-          throw new Error(data.error?.message || data.message || `API request failed with status ${response.status}`)
+          const errorMessage = data.error?.message || data.message || `API请求失败 (状态码: ${response.status})`
+          console.error('API error response:', data)
+          throw new Error(errorMessage)
         }
         return data
       } catch (parseError) {
-        // 如果响应不是 JSON，检查是否包含错误信息
+        // 如果响应不是 JSON
+        console.error('Failed to parse response as JSON:', {
+          error: parseError,
+          text: text.substring(0, 500)
+        })
+
+        // 检查是否包含常见错误信息
         if (text.includes('error') || text.includes('Error') || !response.ok) {
-          console.error('Non-JSON error response:', text)
-          throw new Error('API服务器返回了无效的响应格式，请稍后重试')
+          throw new Error(text.includes('An error occurred')
+            ? '服务器处理请求时发生错误，请稍后重试'
+            : 'API服务器返回了无效的响应格式')
         }
-        throw parseError
+
+        throw new Error('服务器返回了无效的数据格式')
       }
     } catch (error: any) {
-      if (i === retries - 1) throw error
-      // 如果还有重试次数，等待一段时间后重试
-      await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)))
+      console.error(`Attempt ${i + 1} failed:`, error)
+      
+      // 如果是最后一次尝试，抛出错误
+      if (i === retries - 1) {
+        throw new Error(error.message || '请求失败，请稍后重试')
+      }
+
+      // 否则等待后重试
+      const delay = 1000 * (i + 1)
+      console.log(`Waiting ${delay}ms before retry...`)
+      await new Promise(resolve => setTimeout(resolve, delay))
     }
   }
-  throw new Error('Maximum retries reached')
+  throw new Error('达到最大重试次数')
 }
 
 export async function POST(req: Request) {
@@ -113,6 +143,14 @@ export async function POST(req: Request) {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 seconds timeout
 
+      console.log('Starting API request with body:', {
+        model: requestBody.model,
+        messages: requestBody.messages.map((m: any) => ({
+          role: m.role,
+          content: m.content.substring(0, 100) + (m.content.length > 100 ? '...' : '') // 只记录消息的前100个字符
+        }))
+      })
+
       const data = await fetchWithRetry(endpoint, {
         method: 'POST',
         headers,
@@ -129,15 +167,23 @@ export async function POST(req: Request) {
       if (model === 'claude') {
         responseContent = data.content[0].text
       } else {
+        if (!data.choices?.[0]?.message?.content) {
+          console.error('Unexpected API response structure:', data)
+          throw new Error('API返回了意外的数据结构')
+        }
         responseContent = data.choices[0].message.content
       }
 
       return NextResponse.json({ response: responseContent })
     } catch (error: any) {
-      console.error('API request error:', error)
+      console.error('API request failed:', {
+        error: error.message,
+        stack: error.stack,
+        cause: error.cause
+      })
       return NextResponse.json(
         { error: error.message || '请求失败，请稍后重试' },
-        { status: 500 }
+        { status: error.status || 500 }
       )
     }
   } catch (error: any) {
