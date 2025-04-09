@@ -81,16 +81,50 @@ export async function POST(req: Request) {
 
     try {
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 seconds timeout
+      const timeoutId = setTimeout(() => controller.abort(), 60000) // 增加到60秒超时
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(requestBody),
-        signal: controller.signal,
-        cache: 'no-store',
-        next: { revalidate: 0 }
+      console.log('Sending request to DeepSeek API:', {
+        endpoint,
+        model: requestBody.model,
+        messageCount: requestBody.messages.length
       })
+
+      let response
+      try {
+        response = await fetch(endpoint, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(requestBody),
+          signal: controller.signal,
+          cache: 'no-store',
+          next: { revalidate: 0 }
+        })
+      } catch (fetchError: any) {
+        console.error('Fetch error details:', {
+          name: fetchError.name,
+          message: fetchError.message,
+          cause: fetchError.cause,
+          stack: fetchError.stack
+        })
+
+        // 如果是超时错误，返回特定消息
+        if (fetchError.name === 'AbortError') {
+          return NextResponse.json(
+            { error: '请求超时，请稍后重试' },
+            { status: 504 }
+          )
+        }
+
+        // 如果是网络错误，返回特定消息
+        if (fetchError.message.includes('network') || fetchError.message.includes('terminated')) {
+          return NextResponse.json(
+            { error: '网络连接错误，请检查网络连接并重试' },
+            { status: 503 }
+          )
+        }
+
+        throw fetchError
+      }
 
       clearTimeout(timeoutId)
 
@@ -163,25 +197,15 @@ export async function POST(req: Request) {
       }
 
       return NextResponse.json({ response: responseContent })
-    } catch (fetchError: any) {
-      console.error('Fetch error details:', {
-        name: fetchError.name,
-        message: fetchError.message,
-        stack: fetchError.stack,
-        cause: fetchError.cause,
+    } catch (error: any) {
+      console.error('Chat API error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack,
+        cause: error.cause,
       })
-      const errorMessage = fetchError.name === 'AbortError' 
-        ? 'Request timed out after 30 seconds' 
-        : `${fetchError.message} (${fetchError.name})`
       return NextResponse.json(
-        { 
-          error: `Network error: ${errorMessage}`,
-          details: {
-            name: fetchError.name,
-            message: fetchError.message,
-            cause: fetchError.cause
-          }
-        },
+        { error: `Server error: ${error.message}` },
         { status: 500 }
       )
     }
