@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 
 const MODEL_ENDPOINTS = {
-  deepseek: 'https://api.deepseek.com/v1/chat/completions',
+  deepseek: 'https://api.deepseek.ai/v1/chat/completions',
   'gpt-4': 'https://api.openai.com/v1/chat/completions',
   claude: 'https://api.anthropic.com/v1/messages',
 }
@@ -40,9 +40,19 @@ export async function POST(req: Request) {
         })),
         max_tokens: 1000,
       }
+    } else if (model === 'deepseek') {
+      requestBody = {
+        model: 'deepseek-chat',
+        messages: messages.map((msg: any) => ({
+          role: msg.role === 'user' ? 'user' : 'assistant',
+          content: msg.content,
+        })),
+        max_tokens: 1000,
+        temperature: 0.7,
+      }
     } else {
       requestBody = {
-        model: model === 'deepseek' ? 'deepseek-chat' : 'gpt-4',
+        model: 'gpt-4',
         messages: messages.map((msg: any) => ({
           role: msg.role,
           content: msg.content,
@@ -50,6 +60,9 @@ export async function POST(req: Request) {
         max_tokens: 1000,
       }
     }
+
+    console.log('Sending request to:', endpoint)
+    console.log('Request body:', JSON.stringify(requestBody, null, 2))
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -59,6 +72,7 @@ export async function POST(req: Request) {
 
     if (!response.ok) {
       const error = await response.json()
+      console.error('API Error:', error)
       return NextResponse.json(
         { error: error.error?.message || 'API request failed' },
         { status: response.status }
@@ -66,6 +80,8 @@ export async function POST(req: Request) {
     }
 
     const data = await response.json()
+    console.log('API Response:', JSON.stringify(data, null, 2))
+    
     let responseText
 
     if (model === 'claude') {
