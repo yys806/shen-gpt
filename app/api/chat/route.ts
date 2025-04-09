@@ -85,23 +85,46 @@ export async function POST(req: Request) {
 
       const responseText = await response.text()
       console.log('Raw API Response:', responseText)
+      console.log('Response status:', response.status)
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()))
+
+      // 尝试解析响应
+      let data
+      try {
+        data = JSON.parse(responseText)
+      } catch (parseError) {
+        console.error('JSON Parse error:', {
+          error: parseError,
+          responseText: responseText,
+          status: response.status,
+        })
+        return NextResponse.json(
+          { 
+            error: `Invalid API response: ${responseText.substring(0, 200)}...`,
+            details: {
+              status: response.status,
+              headers: Object.fromEntries(response.headers.entries()),
+              responsePreview: responseText.substring(0, 500)
+            }
+          },
+          { status: 500 }
+        )
+      }
 
       if (!response.ok) {
         let errorMessage = 'API request failed'
-        try {
-          const errorData = JSON.parse(responseText)
-          errorMessage = errorData.error?.message || errorData.message || `API request failed with status ${response.status}`
-        } catch (e) {
-          errorMessage = responseText || `API request failed with status ${response.status}`
-        }
-        console.error('API Error:', errorMessage)
+        errorMessage = data?.error?.message || data?.message || `API request failed with status ${response.status}`
+        console.error('API Error:', {
+          message: errorMessage,
+          status: response.status,
+          data: data
+        })
         return NextResponse.json(
           { error: `API Error: ${errorMessage}` },
           { status: response.status }
         )
       }
 
-      const data = JSON.parse(responseText)
       console.log('Parsed API Response:', JSON.stringify(data, null, 2))
       
       let responseContent
