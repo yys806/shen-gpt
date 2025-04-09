@@ -25,11 +25,22 @@ export async function POST(req: Request) {
       )
     }
 
-    const headers = {
+    let headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
+    }
+
+    if (model === 'deepseek') {
+      headers = {
+        ...headers,
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+        'Connection': 'keep-alive',
+        'Origin': 'https://api.deepseek.com',
+        'Referer': 'https://api.deepseek.com/'
+      }
     }
 
     let requestBody
@@ -87,6 +98,22 @@ export async function POST(req: Request) {
       console.log('Raw API Response:', responseText)
       console.log('Response status:', response.status)
       console.log('Response headers:', Object.fromEntries(response.headers.entries()))
+
+      // 检查响应是否为HTML
+      if (responseText.trim().startsWith('<!DOCTYPE html>') || responseText.trim().startsWith('<html>')) {
+        console.error('Received HTML response instead of JSON:', responseText)
+        return NextResponse.json(
+          { 
+            error: 'Received HTML response instead of JSON. API endpoint might be incorrect or experiencing issues.',
+            details: {
+              status: response.status,
+              headers: Object.fromEntries(response.headers.entries()),
+              responsePreview: responseText.substring(0, 500)
+            }
+          },
+          { status: 500 }
+        )
+      }
 
       // 尝试解析响应
       let data
