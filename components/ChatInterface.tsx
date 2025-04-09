@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useAppStore } from '@/app/providers'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
+import Link from 'next/link'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -46,15 +47,40 @@ export default function ChatInterface() {
       setMessages((prev) => [...prev, { role: 'assistant', content: data.response }])
     } catch (error) {
       console.error('Error:', error)
-      // Handle error appropriately
+      setMessages((prev) => [...prev, { 
+        role: 'assistant', 
+        content: '抱歉，发生了错误。请检查您的API密钥是否正确，或稍后重试。' 
+      }])
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      handleSubmit(e)
     }
   }
 
   return (
     <div className="flex flex-col h-[calc(100vh-200px)]">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.length === 0 && (
+          <div className="text-center text-gray-500 mt-8">
+            <p className="mb-4">👋 欢迎使用珅哥GPT！</p>
+            {!apiKey ? (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <p className="mb-2">⚠️ 请先配置API密钥才能开始对话</p>
+                <Link href="/profile" className="text-primary hover:underline">
+                  点击这里前往配置
+                </Link>
+              </div>
+            ) : (
+              <p>开始输入您的问题吧！</p>
+            )}
+          </div>
+        )}
         {messages.map((message, index) => (
           <div
             key={index}
@@ -97,18 +123,28 @@ export default function ChatInterface() {
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="输入您的问题..."
+            onKeyPress={handleKeyPress}
+            placeholder={apiKey ? "输入您的问题..." : "请先在个人中心配置API密钥"}
             className="flex-1 input-field"
-            disabled={isLoading}
+            disabled={isLoading || !apiKey}
           />
           <button
             type="submit"
-            className="btn-primary"
-            disabled={isLoading || !apiKey}
+            className={`btn-primary ${(!apiKey || !input.trim() || isLoading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={!apiKey || !input.trim() || isLoading}
           >
             {isLoading ? '发送中...' : '发送'}
           </button>
         </div>
+        {!apiKey && (
+          <p className="mt-2 text-sm text-gray-500">
+            提示：您需要先在
+            <Link href="/profile" className="text-primary hover:underline mx-1">
+              个人中心
+            </Link>
+            配置API密钥才能发送消息
+          </p>
+        )}
       </form>
     </div>
   )
