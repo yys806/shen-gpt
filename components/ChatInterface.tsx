@@ -40,16 +40,16 @@ export default function ChatInterface() {
       })
 
       const data = await response.json()
-      if (data.error) {
-        throw new Error(data.error)
+      if (!response.ok) {
+        throw new Error(data.error || 'API request failed')
       }
 
       setMessages((prev) => [...prev, { role: 'assistant', content: data.response }])
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error:', error)
       setMessages((prev) => [...prev, { 
         role: 'assistant', 
-        content: '抱歉，发生了错误。请检查您的API密钥是否正确，或稍后重试。' 
+        content: `抱歉，发生了错误：${error.message || '请检查您的API密钥是否正确，或稍后重试。'}` 
       }])
     } finally {
       setIsLoading(false)
@@ -92,7 +92,9 @@ export default function ChatInterface() {
               className={`max-w-[80%] rounded-lg p-4 ${
                 message.role === 'user'
                   ? 'bg-primary text-white'
-                  : 'bg-white shadow-sm'
+                  : message.content.startsWith('抱歉，发生了错误')
+                    ? 'bg-red-50 text-red-600 border border-red-200'
+                    : 'bg-white shadow-sm'
               }`}
             >
               <ReactMarkdown remarkPlugins={[remarkGfm]}>

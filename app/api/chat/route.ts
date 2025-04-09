@@ -49,6 +49,7 @@ export async function POST(req: Request) {
         })),
         max_tokens: 1000,
         temperature: 0.7,
+        stream: false
       }
     } else {
       requestBody = {
@@ -64,37 +65,54 @@ export async function POST(req: Request) {
     console.log('Sending request to:', endpoint)
     console.log('Request body:', JSON.stringify(requestBody, null, 2))
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(requestBody),
-    })
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+      })
 
-    if (!response.ok) {
-      const error = await response.json()
-      console.error('API Error:', error)
+      const responseText = await response.text()
+      console.log('Raw API Response:', responseText)
+
+      if (!response.ok) {
+        let errorMessage = 'API request failed'
+        try {
+          const errorData = JSON.parse(responseText)
+          errorMessage = errorData.error?.message || errorData.message || 'API request failed'
+        } catch (e) {
+          errorMessage = responseText || 'API request failed'
+        }
+        console.error('API Error:', errorMessage)
+        return NextResponse.json(
+          { error: errorMessage },
+          { status: response.status }
+        )
+      }
+
+      const data = JSON.parse(responseText)
+      console.log('Parsed API Response:', JSON.stringify(data, null, 2))
+      
+      let responseContent
+
+      if (model === 'claude') {
+        responseContent = data.content[0].text
+      } else {
+        responseContent = data.choices[0].message.content
+      }
+
+      return NextResponse.json({ response: responseContent })
+    } catch (fetchError) {
+      console.error('Fetch error:', fetchError)
       return NextResponse.json(
-        { error: error.error?.message || 'API request failed' },
-        { status: response.status }
+        { error: `Network error: ${fetchError.message}` },
+        { status: 500 }
       )
     }
-
-    const data = await response.json()
-    console.log('API Response:', JSON.stringify(data, null, 2))
-    
-    let responseText
-
-    if (model === 'claude') {
-      responseText = data.content[0].text
-    } else {
-      responseText = data.choices[0].message.content
-    }
-
-    return NextResponse.json({ response: responseText })
-  } catch (error) {
+  } catch (error: any) {
     console.error('Chat API error:', error)
     return NextResponse.json(
-      { error: 'Internal server error' },
+      { error: `Server error: ${error.message}` },
       { status: 500 }
     )
   }
