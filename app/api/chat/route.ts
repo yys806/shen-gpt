@@ -27,7 +27,9 @@ export async function POST(req: Request) {
 
     const headers = {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
+      'Accept': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36'
     }
 
     let requestBody
@@ -42,7 +44,7 @@ export async function POST(req: Request) {
       }
     } else if (model === 'deepseek') {
       requestBody = {
-        model: 'deepseek-coder-33b-instruct',
+        model: 'deepseek-chat',
         messages: messages.map((msg: any) => ({
           role: msg.role === 'user' ? 'user' : 'assistant',
           content: msg.content,
@@ -67,11 +69,19 @@ export async function POST(req: Request) {
     console.log('Request body:', JSON.stringify(requestBody, null, 2))
 
     try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 seconds timeout
+
       const response = await fetch(endpoint, {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody),
+        signal: controller.signal,
+        cache: 'no-store',
+        next: { revalidate: 0 }
       })
+
+      clearTimeout(timeoutId)
 
       const responseText = await response.text()
       console.log('Raw API Response:', responseText)
@@ -80,9 +90,9 @@ export async function POST(req: Request) {
         let errorMessage = 'API request failed'
         try {
           const errorData = JSON.parse(responseText)
-          errorMessage = errorData.error?.message || errorData.message || 'API request failed'
+          errorMessage = errorData.error?.message || errorData.message || `API request failed with status ${response.status}`
         } catch (e) {
-          errorMessage = responseText || 'API request failed'
+          errorMessage = responseText || `API request failed with status ${response.status}`
         }
         console.error('API Error:', errorMessage)
         return NextResponse.json(
@@ -105,8 +115,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ response: responseContent })
     } catch (fetchError: any) {
       console.error('Fetch error:', fetchError)
+      const errorMessage = fetchError.name === 'AbortError' 
+        ? 'Request timed out after 30 seconds' 
+        : fetchError.message
       return NextResponse.json(
-        { error: `Network error: ${fetchError.message}` },
+        { error: `Network error: ${errorMessage}. Please check your network connection and try again.` },
         { status: 500 }
       )
     }
