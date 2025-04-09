@@ -1,46 +1,82 @@
-# Getting Started with Create React App
+# 珅哥GPT
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+一个现代化的AI助手平台，支持多种AI模型和功能，包括对话、绘画、PPT生成和音乐创作等。
 
-## Available Scripts
+## 功能特点
 
-In the project directory, you can run:
+- 支持多种AI模型（DeepSeek、GPT-4、Claude等）
+- 简洁现代的UI设计，灵感来自苹果官网
+- 用户认证系统（支持GitHub和Google登录）
+- API密钥管理
+- Markdown支持
+- 响应式设计
 
-### `npm start`
+## 技术栈
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
+- Next.js 14
+- React
+- TypeScript
+- Tailwind CSS
+- NextAuth.js
+- Zustand
 
-The page will reload if you make edits.\
-You will also see any lint errors in the console.
+## 本地开发
 
-### `npm test`
+1. 克隆仓库：
+```bash
+git clone https://github.com/yourusername/shen-gpt.git
+cd shen-gpt
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+2. 安装依赖：
+```bash
+npm install
+```
 
-### `npm run build`
+3. 创建环境变量文件：
+```bash
+cp .env.example .env.local
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+4. 配置环境变量：
+```env
+# 认证配置
+GITHUB_ID=your_github_client_id
+GITHUB_SECRET=your_github_client_secret
+GOOGLE_ID=your_google_client_id
+GOOGLE_SECRET=your_google_client_secret
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+# 数据库配置（如果需要）
+DATABASE_URL=your_database_url
+```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+5. 启动开发服务器：
+```bash
+npm run dev
+```
 
-### `npm run eject`
+## 部署
 
-**Note: this is a one-way operation. Once you `eject`, you can’t go back!**
+1. 构建生产版本：
+```bash
+npm run build
+```
 
-If you aren’t satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+2. 启动生产服务器：
+```bash
+npm start
+```
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you’re on your own.
+## 环境变量说明
 
-You don’t have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn’t feel obligated to use this feature. However we understand that this tool wouldn’t be useful if you couldn’t customize it when you are ready for it.
+- `GITHUB_ID` 和 `GITHUB_SECRET`：GitHub OAuth应用凭证
+- `GOOGLE_ID` 和 `GOOGLE_SECRET`：Google OAuth应用凭证
+- `DATABASE_URL`：数据库连接URL（如果需要持久化存储）
 
-## Learn More
+## 贡献
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+欢迎提交Issue和Pull Request！
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## 许可证
+
+MIT 
