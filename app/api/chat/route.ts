@@ -42,12 +42,12 @@ export async function POST(req: Request) {
       }
     } else if (model === 'deepseek') {
       requestBody = {
-        model: 'deepseek-chat',
+        model: 'deepseek-coder-33b-instruct',
         messages: messages.map((msg: any) => ({
           role: msg.role === 'user' ? 'user' : 'assistant',
           content: msg.content,
         })),
-        max_tokens: 1000,
+        max_tokens: 2000,
         temperature: 0.7,
         stream: false
       }
@@ -63,6 +63,7 @@ export async function POST(req: Request) {
     }
 
     console.log('Sending request to:', endpoint)
+    console.log('Request headers:', { ...headers, Authorization: 'Bearer [REDACTED]' })
     console.log('Request body:', JSON.stringify(requestBody, null, 2))
 
     try {
@@ -85,7 +86,7 @@ export async function POST(req: Request) {
         }
         console.error('API Error:', errorMessage)
         return NextResponse.json(
-          { error: errorMessage },
+          { error: `API Error: ${errorMessage}` },
           { status: response.status }
         )
       }
@@ -102,7 +103,7 @@ export async function POST(req: Request) {
       }
 
       return NextResponse.json({ response: responseContent })
-    } catch (fetchError) {
+    } catch (fetchError: any) {
       console.error('Fetch error:', fetchError)
       return NextResponse.json(
         { error: `Network error: ${fetchError.message}` },
