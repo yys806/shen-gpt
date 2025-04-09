@@ -1,6 +1,8 @@
 import NextAuth from 'next-auth'
 import GithubProvider from 'next-auth/providers/github'
 import GoogleProvider from 'next-auth/providers/google'
+import { Session } from 'next-auth'
+import { JWT } from 'next-auth/jwt'
 
 const handler = NextAuth({
   providers: [
@@ -17,7 +19,7 @@ const handler = NextAuth({
     signIn: '/auth/signin',
   },
   callbacks: {
-    async session({ session, token }) {
+    async session({ session, token }: { session: Session; token: JWT }) {
       if (session.user) {
         session.user.id = token.sub
       }
