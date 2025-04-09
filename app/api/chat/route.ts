@@ -6,6 +6,36 @@ const MODEL_ENDPOINTS = {
   claude: 'https://api.anthropic.com/v1/messages',
 }
 
+async function fetchWithRetry(url: string, options: RequestInit, retries = 3) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, options)
+      const text = await response.text()
+
+      // 尝试解析为 JSON
+      try {
+        const data = JSON.parse(text)
+        if (!response.ok) {
+          throw new Error(data.error?.message || data.message || `API request failed with status ${response.status}`)
+        }
+        return data
+      } catch (parseError) {
+        // 如果响应不是 JSON，检查是否包含错误信息
+        if (text.includes('error') || text.includes('Error') || !response.ok) {
+          console.error('Non-JSON error response:', text)
+          throw new Error('API服务器返回了无效的响应格式，请稍后重试')
+        }
+        throw parseError
+      }
+    } catch (error: any) {
+      if (i === retries - 1) throw error
+      // 如果还有重试次数，等待一段时间后重试
+      await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)))
+    }
+  }
+  throw new Error('Maximum retries reached')
+}
+
 export async function POST(req: Request) {
   try {
     const { messages, model, apiKey } = await req.json()
@@ -81,112 +111,18 @@ export async function POST(req: Request) {
 
     try {
       const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 60000) // 增加到60秒超时
+      const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 seconds timeout
 
-      console.log('Sending request to DeepSeek API:', {
-        endpoint,
-        model: requestBody.model,
-        messageCount: requestBody.messages.length
+      const data = await fetchWithRetry(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(requestBody),
+        signal: controller.signal,
+        cache: 'no-store',
+        next: { revalidate: 0 }
       })
 
-      let response
-      try {
-        response = await fetch(endpoint, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(requestBody),
-          signal: controller.signal,
-          cache: 'no-store',
-          next: { revalidate: 0 }
-        })
-      } catch (fetchError: any) {
-        console.error('Fetch error details:', {
-          name: fetchError.name,
-          message: fetchError.message,
-          cause: fetchError.cause,
-          stack: fetchError.stack
-        })
-
-        // 如果是超时错误，返回特定消息
-        if (fetchError.name === 'AbortError') {
-          return NextResponse.json(
-            { error: '请求超时，请稍后重试' },
-            { status: 504 }
-          )
-        }
-
-        // 如果是网络错误，返回特定消息
-        if (fetchError.message.includes('network') || fetchError.message.includes('terminated')) {
-          return NextResponse.json(
-            { error: '网络连接错误，请检查网络连接并重试' },
-            { status: 503 }
-          )
-        }
-
-        throw fetchError
-      }
-
       clearTimeout(timeoutId)
-
-      const responseText = await response.text()
-      console.log('Raw API Response:', responseText)
-      console.log('Response status:', response.status)
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()))
-
-      // 检查响应是否为HTML或错误页面
-      if (responseText.includes('<!DOCTYPE html>') || responseText.includes('<html>') || responseText.includes('An error occurred')) {
-        console.error('Received invalid response:', responseText)
-        return NextResponse.json(
-          { 
-            error: 'API服务器返回了无效的响应，请稍后重试',
-            details: {
-              status: response.status,
-              headers: Object.fromEntries(response.headers.entries()),
-              responsePreview: responseText.substring(0, 500)
-            }
-          },
-          { status: 500 }
-        )
-      }
-
-      // 尝试解析响应
-      let data
-      try {
-        data = JSON.parse(responseText.trim())
-      } catch (parseError) {
-        console.error('JSON Parse error:', {
-          error: parseError,
-          responseText: responseText,
-          status: response.status,
-        })
-        return NextResponse.json(
-          { 
-            error: '服务器返回了无效的数据格式，请稍后重试',
-            details: {
-              status: response.status,
-              headers: Object.fromEntries(response.headers.entries()),
-              responsePreview: responseText.substring(0, 500)
-            }
-          },
-          { status: 500 }
-        )
-      }
-
-      if (!response.ok) {
-        let errorMessage = 'API request failed'
-        errorMessage = data?.error?.message || data?.message || `API request failed with status ${response.status}`
-        console.error('API Error:', {
-          message: errorMessage,
-          status: response.status,
-          data: data
-        })
-        return NextResponse.json(
-          { error: `API Error: ${errorMessage}` },
-          { status: response.status }
-        )
-      }
-
-      console.log('Parsed API Response:', JSON.stringify(data, null, 2))
       
       let responseContent
 
@@ -198,26 +134,16 @@ export async function POST(req: Request) {
 
       return NextResponse.json({ response: responseContent })
     } catch (error: any) {
-      console.error('Chat API error details:', {
-        name: error.name,
-        message: error.message,
-        stack: error.stack,
-        cause: error.cause,
-      })
+      console.error('API request error:', error)
       return NextResponse.json(
-        { error: `Server error: ${error.message}` },
+        { error: error.message || '请求失败，请稍后重试' },
         { status: 500 }
       )
     }
   } catch (error: any) {
-    console.error('Chat API error details:', {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
-      cause: error.cause,
-    })
+    console.error('Server error:', error)
     return NextResponse.json(
-      { error: `Server error: ${error.message}` },
+      { error: `服务器错误: ${error.message}` },
       { status: 500 }
     )
   }
